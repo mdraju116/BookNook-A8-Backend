@@ -49,20 +49,28 @@ async function migrateExistingData() {
   );
 
   // Normalize old borrow records
+  //Find these records(missing userId or,bookId as a string instead of MongoDB ObjectId)
   const oldBorrows = await borrows.find({
-    $or: [
+	//at least one condition must be true.
+    $or: [ 
       { userId: { $exists: false } },
       { bookId: { $type: "string" } },
     ],
   }).toArray();
-
+   
+   
+  //check and update the userId and bookId
+  //1.Loop through each old borrow
   for (const borrow of oldBorrows) {
+	  //2.Create empty updates object
     const updates = {};
 
+    //3.Check and fix userId (if missing at borrow{})
     if (!borrow.userId && borrow.addedBy?.userId) {
       updates.userId = borrow.addedBy.userId;
     }
 
+    //4.Check and convert bookId to ObjectId
     if (
       typeof borrow.bookId === "string" &&
       ObjectId.isValid(borrow.bookId)
@@ -70,6 +78,9 @@ async function migrateExistingData() {
       updates.bookId = new ObjectId(borrow.bookId);
     }
 
+   //5.Are there any updates{}?
+   //5a.Yes =>Update MongoDB   
+   //5b.No  =>Skip update
     if (Object.keys(updates).length > 0) {
       await borrows.updateOne(
         { _id: borrow._id },
@@ -153,7 +164,7 @@ app.get("/", (req, res) => {
 app.post("/add-book", verifyToken, async (req, res) => {
   try {
     const { totalCopies, addedBy, ...bookData } = req.body;
-
+	//here, ...bookData is a rest Operator (collecting values by destructuring)
     if (!Number.isInteger(totalCopies) || totalCopies <= 0) {
       return res.status(400).send({
         message: "Total copies must be a positive integer.",
@@ -161,7 +172,7 @@ app.post("/add-book", verifyToken, async (req, res) => {
     }
 
     const newBook = {
-      ...bookData,
+      ...bookData, //here, ...bookData  is a spread operator (Expandig valuse, by creating/copying)
       totalCopies,
       addedBy: {
         ...(addedBy || {}),
